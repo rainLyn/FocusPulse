@@ -33,15 +33,6 @@ struct HomeView: View {
                     }
                 )
             }
-            .alert("检测到未结束的专注", isPresented: Bindable(vm).showInterruptionAlert) {
-                Button("确认记录") { vm.acceptInterruption() }
-                Button("丢弃", role: .destructive) { vm.discardInterruption() }
-            } message: {
-                if let s = vm.interruptionSession {
-                    let elapsed = Int(Date().timeIntervalSince(s.startTime))
-                    Text("上次专注在 \(elapsed.prettyFormat) 时意外中断，是否记录？")
-                }
-            }
             .alert("确认删除", isPresented: Bindable(vm).showDeleteConfirmation) {
                 Button("删除", role: .destructive) { vm.confirmDelete() }
                 Button("取消", role: .cancel) { vm.cancelDelete() }

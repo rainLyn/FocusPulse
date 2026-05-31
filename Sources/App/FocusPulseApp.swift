@@ -34,7 +34,18 @@ struct FocusPulseApp: App {
                     break
                 }
             }
+            .onOpenURL { url in
+                FocusPulseApp.handleDeepLink(url)
+            }
         }
+    }
+}
+
+extension FocusPulseApp {
+    /// 处理 Live Activity 点击跳转的深链
+    static func handleDeepLink(_ url: URL) {
+        guard url.scheme == "focuspulse", url.host == "timer" else { return }
+        NotificationCenter.default.post(name: .appDidBecomeActive, object: nil)
     }
 }
 

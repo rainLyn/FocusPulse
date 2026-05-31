@@ -55,5 +55,6 @@ struct TimerLiveActivity: Widget {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .activityBackgroundTint(.black.opacity(0.2))
+        .widgetURL(URL(string: "focuspulse://timer"))
     }
 }

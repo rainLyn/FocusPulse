@@ -5,6 +5,7 @@ import Foundation
 // ═════════════════════════════════════════════════════════════
 //  TimerEngine — 状态机测试
 // ═════════════════════════════════════════════════════════════
+@MainActor
 struct TimerEngineTests {
 
     @Test("初始 idle，elapsed 为 0")
@@ -16,7 +17,7 @@ struct TimerEngineTests {
     }
 
     @Test("start → running，end 后 → ended")
-    func lifeCycle() {
+    func lifeCycle() async throws {
         let engine = TimerEngine()
         let catId = UUID()
         engine.start(categoryId: catId)
@@ -24,8 +25,8 @@ struct TimerEngineTests {
         #expect(engine.isRunning)
         #expect(engine.elapsedSeconds == 0)
 
-        // 给 Timer 一个 tick 的机会
-        Thread.sleep(forTimeInterval: 0.15)
+        /* 让时间自然流逝，保证 duration >= 1s */
+        try await Task.sleep(nanoseconds: 1_200_000_000)
 
         engine.stop()
 
@@ -93,13 +94,13 @@ struct TimerEngineTests {
     }
 
     @Test("stop 后 elapsed 冻结")
-    func elapsedFrozenAfterStop() {
+    func elapsedFrozenAfterStop() async throws {
         let engine = TimerEngine()
         engine.start(categoryId: UUID())
-        Thread.sleep(forTimeInterval: 0.1)
+        try await Task.sleep(nanoseconds: 100_000_000)
         engine.stop()
         let frozen = engine.elapsedSeconds
-        Thread.sleep(forTimeInterval: 0.1)
+        try await Task.sleep(nanoseconds: 100_000_000)
         #expect(engine.computeElapsed() == frozen)
     }
 }

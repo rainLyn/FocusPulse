@@ -135,6 +135,14 @@ public final class AggregationService {
         sessionRepo.deleteAll(before: date)
     }
 
+    /// 清除所有数据，重新开始。返回删除条数
+    @discardableResult
+    public func clearAllData() -> Int {
+        let count = sessionRepo.deleteAll()
+        summaryRepo.deleteAll()
+        return count
+    }
+
     /// 刷新某日的聚合数据（session 写入后调用）
     public func refreshDailySummary(for date: Date) {
         summaryRepo.refresh(date: date)

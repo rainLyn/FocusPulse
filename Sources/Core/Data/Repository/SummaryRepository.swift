@@ -44,6 +44,14 @@ public final class SummaryRepository {
         try? context.save()
     }
 
+    /// 删除全部聚合数据
+    public func deleteAll() {
+        let descriptor = FetchDescriptor<DailySummary>()
+        guard let toDelete = try? context.fetch(descriptor) else { return }
+        toDelete.forEach { context.delete($0) }
+        try? context.save()
+    }
+
     /// 返回一年中每天的总专注秒数 [date: totalSeconds]
     public func heatmapData(year: Int) -> [Date: Int] {
         let cal = Calendar.current
@@ -73,37 +81,32 @@ public final class SummaryRepository {
         let sessionRepo = SessionRepository(context: context)
         let sessions = sessionRepo.fetch(date: date)
 
+        /* 先清空当日旧的聚合记录，再基于当前 session 重建 ——
+           消除分类被删后残留 DailySummary 的 bug */
+        deleteAll(for: dayStart)
+
         let grouped = Dictionary(grouping: sessions.filter { $0.durationSeconds >= 30 }) {
             $0.categoryId
         }
 
         for (catId, catSessions) in grouped {
-            let totalSecs = catSessions.reduce(0) { $0 + $1.durationSeconds }
-            let count = catSessions.count
-            if let existing = findExisting(date: dayStart, categoryId: catId) {
-                existing.totalSeconds = totalSecs
-                existing.sessionCount = count
-                existing.updatedAt = Date()
-            } else {
-                let summary = DailySummary(
-                    date: dayStart,
-                    categoryId: catId,
-                    totalSeconds: totalSecs,
-                    sessionCount: count
-                )
-                context.insert(summary)
-            }
+            let summary = DailySummary(
+                date: dayStart,
+                categoryId: catId,
+                totalSeconds: catSessions.reduce(0) { $0 + $1.durationSeconds },
+                sessionCount: catSessions.count
+            )
+            context.insert(summary)
         }
         try? context.save()
     }
 
-    private func findExisting(date: Date, categoryId: UUID) -> DailySummary? {
-        guard let next = Calendar.current.date(byAdding: .day, value: 1, to: date) else { return nil }
+    private func deleteAll(for date: Date) {
+        guard let next = Calendar.current.date(byAdding: .day, value: 1, to: date) else { return }
         let descriptor = FetchDescriptor<DailySummary>(
-            predicate: #Predicate {
-                $0.date >= date && $0.date < next && $0.categoryId == categoryId
-            }
+            predicate: #Predicate { $0.date >= date && $0.date < next }
         )
-        return try? context.fetch(descriptor).first
+        guard let toDelete = try? context.fetch(descriptor) else { return }
+        toDelete.forEach { context.delete($0) }
     }
 }

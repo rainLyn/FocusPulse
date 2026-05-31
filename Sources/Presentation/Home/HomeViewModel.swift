@@ -5,6 +5,9 @@ import FocusPulseCore
 // ═══════════════════════════════════════════════════════════════
 //  HomeViewModel — 首页状态管理
 //  持有分类数据、计时引擎、今日概览
+//
+//  真相源: FocusSession (endTime == nil) 即表示计时中
+//  TimerEngine / LiveActivity / displayElapsedSeconds 都派生于此
 // ═══════════════════════════════════════════════════════════════
 @MainActor
 @Observable
@@ -16,8 +19,6 @@ final class HomeViewModel {
     var showTimer = false
     var showCategoryEditor = false
     var editingCategory: FocusCategory? = nil
-    var showInterruptionAlert = false
-    var interruptionSession: FocusSession? = nil
     var pendingDeleteCategory: FocusCategory? = nil
     var showDeleteConfirmation = false
     var deleteConfirmationMessage = ""
@@ -27,6 +28,9 @@ final class HomeViewModel {
     var displayElapsedSeconds: Int = 0
 
     let timerEngine = TimerEngine()
+
+    /// 当前活跃的专注 session（DB 中 endTime==nil 的那条）
+    private var activeSession: FocusSession? = nil
 
     private let categoryService: CategoryService
     private let sessionRepo: SessionRepository
@@ -65,7 +69,7 @@ final class HomeViewModel {
         isInitialized = true
 
         reloadCategories()
-        checkInterruption()
+        restoreActiveSessionIfNeeded()
         refreshDaily()
     }
 
@@ -127,32 +131,53 @@ final class HomeViewModel {
     func startFocus() {
         guard let catId = selectedCategoryId else { return }
 
-        timerEngine.start(categoryId: catId)
+        /* 用同一个时间戳，确保 TimerEngine 和 LiveActivity 完全同步 */
+        let now = Date()
+
+        /* 先持久化 session —— 这是唯一的真相源 */
+        let session = FocusSession(
+            categoryId: catId,
+            startTime: now,
+            endTime: nil,
+            durationSeconds: 0
+        )
+        activeSession = session
+        sessionRepo.insert(session)
+
+        /* 从持久化 session 恢复引擎状态 */
+        timerEngine.restore(session: session, currentTime: now)
         displayElapsedSeconds = 0
         startDisplayTimer()
         showTimer = true
 
         let cat = categories.first(where: { $0.id == catId })
-        let name = cat?.name ?? "专注"
-        let colorHex = cat?.colorHex ?? "636366"
-        LiveActivityService.start(categoryName: name, colorHex: colorHex, startedAt: Date())
+        LiveActivityService.start(
+            categoryName: cat?.name ?? "专注",
+            colorHex: cat?.colorHex ?? "636366",
+            startedAt: now
+        )
     }
 
     func endFocus() {
         stopDisplayTimer()
         LiveActivityService.end()
-        timerEngine.stop()
-        guard case .ended(let session) = timerEngine.state else { return }
 
-        // <30s 不记录
-        if session.durationSeconds >= 30 {
-            sessionRepo.insert(session)
+        guard let session = activeSession else { return }
+        let now = Date()
+        let duration = Int(now.timeIntervalSince(session.startTime))
+
+        timerEngine.reset()
+
+        if duration >= 30 {
+            sessionRepo.end(session, at: now)
             aggregationService.refreshDailySummary(for: session.startTime)
             updatePreference(session: session)
+        } else {
+            sessionRepo.delete(session)
         }
 
+        activeSession = nil
         showTimer = false
-        timerEngine.reset()
         refreshDaily()
         NotificationCenter.default.post(name: .dataDidChange, object: nil)
     }
@@ -160,6 +185,12 @@ final class HomeViewModel {
     func discardFocus() {
         stopDisplayTimer()
         LiveActivityService.end()
+
+        if let session = activeSession {
+            sessionRepo.delete(session)
+        }
+        activeSession = nil
+
         timerEngine.reset()
         displayElapsedSeconds = 0
         showTimer = false
@@ -173,35 +204,31 @@ final class HomeViewModel {
     }
 
     // ──────────────────────────────────────────────
-    //  Interruption Recovery
+    //  Interruption Recovery —— 无缝恢复，不弹窗
     // ──────────────────────────────────────────────
-    private func checkInterruption() {
+    private func restoreActiveSessionIfNeeded() {
         guard let active = sessionRepo.fetchActive() else { return }
         let elapsed = Int(Date().timeIntervalSince(active.startTime))
+
+        /* 小于 30s 的僵尸 session 直接清理 */
         guard elapsed >= 30 else {
             sessionRepo.delete(active)
             return
         }
-        interruptionSession = active
-        showInterruptionAlert = true
-    }
 
-    func acceptInterruption() {
-        guard let session = interruptionSession else { return }
-        let end = Date()
-        sessionRepo.end(session, at: end)
-        aggregationService.refreshDailySummary(for: session.startTime)
-        updatePreference(session: session)
-        interruptionSession = nil
-        showInterruptionAlert = false
-        refreshDaily()
-    }
+        /* 无缝恢复：timer 界面直接出现，用户无感知 */
+        activeSession = active
+        timerEngine.restore(session: active)
+        showTimer = true
+        startDisplayTimer()
 
-    func discardInterruption() {
-        guard let session = interruptionSession else { return }
-        sessionRepo.delete(session)
-        interruptionSession = nil
-        showInterruptionAlert = false
+        /* 重新创建 Live Activity（旧的随 App 被杀可能已失效） */
+        let cat = categories.first(where: { $0.id == active.categoryId })
+        LiveActivityService.restart(
+            categoryName: cat?.name ?? "专注",
+            colorHex: cat?.colorHex ?? "636366",
+            startedAt: active.startTime
+        )
     }
 
     // ──────────────────────────────────────────────
@@ -217,6 +244,15 @@ final class HomeViewModel {
         preferenceStore.update { $0.lastActiveDate = Date() }
         refreshDaily()
         reloadCategories()
+
+        /* 回到前台时，如果计时界面未展示但有活跃 session，恢复之
+           覆盖场景：用户在计时中通过通知中心点击回到 App */
+        if !showTimer, let active = sessionRepo.fetchActive() {
+            activeSession = active
+            timerEngine.restore(session: active)
+            showTimer = true
+            startDisplayTimer()
+        }
     }
 
     // ──────────────────────────────────────────────

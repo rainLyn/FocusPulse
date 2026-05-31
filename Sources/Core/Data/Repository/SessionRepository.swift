@@ -97,6 +97,15 @@ public final class SessionRepository {
         return count
     }
 
+    /// 删除全部专注记录，返回删除条数
+    @discardableResult
+    public func deleteAll() -> Int {
+        let all = fetchAll()
+        all.forEach { context.delete($0) }
+        try? context.save()
+        return all.count
+    }
+
     /// 统计指定日期之前的专注记录数
     public func count(before date: Date) -> Int {
         let descriptor = FetchDescriptor<FocusSession>(

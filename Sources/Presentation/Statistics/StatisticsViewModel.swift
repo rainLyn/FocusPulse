@@ -20,6 +20,12 @@ final class StatisticsViewModel {
     var pendingDeletionCount = 0
     var pendingClearDate: Date?
 
+    // 全部清除
+    var showClearAllConfirmation = false
+
+    // 管理记录
+    var showManageSheet = false
+
     // 月份选择器
     var showMonthPicker = false
     var pickerYear = 0
@@ -131,6 +137,32 @@ final class StatisticsViewModel {
         pendingClearDate = nil
         pendingDeletionCount = 0
         showClearConfirmation = false
+    }
+
+    // ── 全部清除 ──
+    func prepareClearAll() {
+        let count = aggregationService.countSessions(before: Date.distantFuture)
+        guard count > 0 else { return }
+        pendingDeletionCount = count
+        showClearAllConfirmation = true
+    }
+
+    func confirmClearAll() {
+        aggregationService.clearAllData()
+        showClearAllConfirmation = false
+        refreshDaily()
+        NotificationCenter.default.post(name: .dataDidChange, object: nil)
+    }
+
+    func cancelClearAll() {
+        pendingDeletionCount = 0
+        showClearAllConfirmation = false
+    }
+
+    /// 管理记录后刷新回调
+    func onManageDataChanged() {
+        refreshDaily()
+        NotificationCenter.default.post(name: .dataDidChange, object: nil)
     }
 
     // ── CSV 导出 ──

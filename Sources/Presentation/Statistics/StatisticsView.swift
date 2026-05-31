@@ -78,6 +78,17 @@ struct StatisticsView: View {
                     Text("将从 \(date.formatted(date: .long, time: .omitted)) 起重新记录。\n该日期之前的 \(vm.pendingDeletionCount) 条记录将被永久删除，此操作不可撤销。")
                 }
             }
+            .alert("全部清除，重新开始", isPresented: Bindable(vm).showClearAllConfirmation) {
+                Button("取消", role: .cancel) { vm.cancelClearAll() }
+                Button("确认全部清除", role: .destructive) { vm.confirmClearAll() }
+            } message: {
+                Text("将永久删除全部 \(vm.pendingDeletionCount) 条专注记录。\n此操作不可撤销，确定要重新开始吗？")
+            }
+            .sheet(isPresented: Bindable(vm).showManageSheet) {
+                SessionManageView(initialDate: vm.currentDate) {
+                    vm.onManageDataChanged()
+                }
+            }
         }
     }
 
@@ -210,19 +221,22 @@ struct StatisticsView: View {
     // ── Toolbar ──
     private var toolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            HStack {
-                Button {
-                    vm.prepareExport()
-                } label: {
-                    Text("导出")
+            Menu {
+                Button { vm.prepareExport() } label: {
+                    Label("导出 CSV", systemImage: "square.and.arrow.up")
                 }
-
-                Button {
-                    vm.showClearDataSheet = true
-                } label: {
-                    Text("清除数据")
-                        .foregroundStyle(.red)
+                Button { vm.showManageSheet = true } label: {
+                    Label("管理记录", systemImage: "list.bullet.clipboard")
                 }
+                Divider()
+                Button { vm.showClearDataSheet = true } label: {
+                    Label("清除指定日期前数据", systemImage: "clock.arrow.circlepath")
+                }
+                Button(role: .destructive) { vm.prepareClearAll() } label: {
+                    Label("全部清除，重新开始", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
             }
         }
     }
