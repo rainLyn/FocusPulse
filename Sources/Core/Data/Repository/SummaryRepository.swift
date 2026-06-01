@@ -73,6 +73,37 @@ public final class SummaryRepository {
     }
 
     // ──────────────────────────────────────────────
+    //  Write
+
+    /// 增量更新 DailySummary——单条 session 结束/添加时使用
+    /// 避免 refresh() 的全删重建
+    public func upsertDailySummary(for session: FocusSession) {
+        let cal = Calendar.current
+        let dayStart = cal.startOfDay(for: session.startTime)
+        guard let next = cal.date(byAdding: .day, value: 1, to: dayStart) else { return }
+        let catId = session.categoryId
+        let duration = session.durationSeconds
+
+        let descriptor = FetchDescriptor<DailySummary>(
+            predicate: #Predicate { $0.date >= dayStart && $0.date < next && $0.categoryId == catId }
+        )
+        if let existing = try? context.fetch(descriptor).first {
+            existing.totalSeconds += duration
+            existing.sessionCount += 1
+            existing.updatedAt = Date()
+        } else {
+            let summary = DailySummary(
+                date: dayStart,
+                categoryId: catId,
+                totalSeconds: duration,
+                sessionCount: 1
+            )
+            context.insert(summary)
+        }
+        try? context.save()
+    }
+
+    // ──────────────────────────────────────────────
     //  Write (refresh)
     // ──────────────────────────────────────────────
     public func refresh(date: Date) {

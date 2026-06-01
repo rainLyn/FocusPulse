@@ -55,11 +55,11 @@ public enum LiveActivityService {
     }
 
     /// 无缝重启 Live Activity（App 被杀后恢复时调用）
-    /// 先结束所有旧 activity，再用正确的 startedAt 启动新的
-    public static func restart(categoryName: String, colorHex: String, startedAt: Date) {
+    /// 先等待旧 activity 全部结束，再用正确的 startedAt 启动新的
+    public static func restart(categoryName: String, colorHex: String, startedAt: Date) async {
         let existing = Activity<TimerActivityAttributes>.activities
         for activity in existing {
-            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+            await activity.end(nil, dismissalPolicy: .immediate)
         }
         currentActivity = nil
         start(categoryName: categoryName, colorHex: colorHex, startedAt: startedAt)

@@ -143,7 +143,12 @@ public final class AggregationService {
         return count
     }
 
-    /// 刷新某日的聚合数据（session 写入后调用）
+    /// 增量添加单条 session 到 DailySummary（结束/手动添加时使用）
+    public func addSessionToSummary(_ session: FocusSession) {
+        summaryRepo.upsertDailySummary(for: session)
+    }
+
+    /// 全量刷新某日的聚合数据（跨天检测、删除后使用）
     public func refreshDailySummary(for date: Date) {
         summaryRepo.refresh(date: date)
     }

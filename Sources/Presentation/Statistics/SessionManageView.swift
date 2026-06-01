@@ -176,7 +176,7 @@ struct SessionManageView: View {
             durationSeconds: duration
         )
         sessionRepo.insert(session)
-        aggregationService.refreshDailySummary(for: start)
+        aggregationService.addSessionToSummary(session)
         refreshSessions()
         onDataChanged()
     }

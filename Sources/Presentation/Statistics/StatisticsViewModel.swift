@@ -38,9 +38,20 @@ final class StatisticsViewModel {
     var exportDocument: CSVDocument?
     var showExportPicker = false
 
+    /// Tab 是否可见，避免不可见时因 dataDidChange 通知刷新浪费查询
+    var isActive = false
+
     private let aggregationService: AggregationService
     private let exportService: ExportService
     private var dataObserver: NSObjectProtocol?
+
+    deinit {
+        MainActor.assumeIsolated {
+            if let observer = dataObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
+        }
+    }
 
     init(
         aggregationService: AggregationService? = nil,
@@ -55,7 +66,8 @@ final class StatisticsViewModel {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.refreshDaily()
+                guard let self, self.isActive else { return }
+                self.refreshDaily()
             }
         }
     }

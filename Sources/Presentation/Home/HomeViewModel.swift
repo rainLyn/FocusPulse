@@ -39,6 +39,14 @@ final class HomeViewModel {
     private var displayTimer: Timer?
     private var dataObserver: NSObjectProtocol?
 
+    deinit {
+        MainActor.assumeIsolated {
+            if let observer = dataObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
+        }
+    }
+
     init(
         categoryService: CategoryService? = nil,
         sessionRepo: SessionRepository? = nil,
@@ -170,7 +178,7 @@ final class HomeViewModel {
 
         if duration >= 30 {
             sessionRepo.end(session, at: now)
-            aggregationService.refreshDailySummary(for: session.startTime)
+            aggregationService.addSessionToSummary(session)
             updatePreference(session: session)
         } else {
             sessionRepo.delete(session)
@@ -178,7 +186,6 @@ final class HomeViewModel {
 
         activeSession = nil
         showTimer = false
-        refreshDaily()
         NotificationCenter.default.post(name: .dataDidChange, object: nil)
     }
 
@@ -207,6 +214,7 @@ final class HomeViewModel {
     //  Interruption Recovery —— 无缝恢复，不弹窗
     // ──────────────────────────────────────────────
     private func restoreActiveSessionIfNeeded() {
+        guard !showTimer else { return }
         guard let active = sessionRepo.fetchActive() else { return }
         let elapsed = Int(Date().timeIntervalSince(active.startTime))
 
@@ -222,13 +230,16 @@ final class HomeViewModel {
         showTimer = true
         startDisplayTimer()
 
-        /* 重新创建 Live Activity（旧的随 App 被杀可能已失效） */
+        /* 重新创建 Live Activity（旧的随 App 被杀可能已失效）
+           异步执行，先结束旧 activity 再启动新的，避免竞态 */
         let cat = categories.first(where: { $0.id == active.categoryId })
-        LiveActivityService.restart(
-            categoryName: cat?.name ?? "专注",
-            colorHex: cat?.colorHex ?? "636366",
-            startedAt: active.startTime
-        )
+        Task {
+            await LiveActivityService.restart(
+                categoryName: cat?.name ?? "专注",
+                colorHex: cat?.colorHex ?? "636366",
+                startedAt: active.startTime
+            )
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -245,14 +256,8 @@ final class HomeViewModel {
         refreshDaily()
         reloadCategories()
 
-        /* 回到前台时，如果计时界面未展示但有活跃 session，恢复之
-           覆盖场景：用户在计时中通过通知中心点击回到 App */
-        if !showTimer, let active = sessionRepo.fetchActive() {
-            activeSession = active
-            timerEngine.restore(session: active)
-            showTimer = true
-            startDisplayTimer()
-        }
+        /* 恢复活跃 session（含 LiveActivity 重启与僵尸清理） */
+        restoreActiveSessionIfNeeded()
     }
 
     // ──────────────────────────────────────────────
@@ -260,7 +265,7 @@ final class HomeViewModel {
     // ──────────────────────────────────────────────
     private func startDisplayTimer() {
         displayTimer?.invalidate()
-        displayTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+        displayTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.displayElapsedSeconds = self.timerEngine.computeElapsed()

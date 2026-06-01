@@ -22,7 +22,11 @@ struct StatisticsView: View {
             }
             .navigationTitle("统计")
             .toolbar { toolbarItems }
-            .onAppear { vm.refresh() }
+            .onAppear {
+                vm.isActive = true
+                vm.refresh()
+            }
+            .onDisappear { vm.isActive = false }
             .fileExporter(
                 isPresented: Bindable(vm).showExportPicker,
                 document: vm.exportDocument,
