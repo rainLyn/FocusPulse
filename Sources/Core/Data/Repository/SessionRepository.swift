@@ -79,6 +79,11 @@ public final class SessionRepository {
         try? context.save()
     }
 
+    public func update(_ session: FocusSession) {
+        session.updatedAt = Date()
+        try? context.save()
+    }
+
     public func delete(_ session: FocusSession) {
         context.delete(session)
         try? context.save()

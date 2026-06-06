@@ -23,9 +23,6 @@ final class StatisticsViewModel {
     // 全部清除
     var showClearAllConfirmation = false
 
-    // 管理记录
-    var showManageSheet = false
-
     // 月份选择器
     var showMonthPicker = false
     var pickerYear = 0
@@ -169,12 +166,6 @@ final class StatisticsViewModel {
     func cancelClearAll() {
         pendingDeletionCount = 0
         showClearAllConfirmation = false
-    }
-
-    /// 管理记录后刷新回调
-    func onManageDataChanged() {
-        refreshDaily()
-        NotificationCenter.default.post(name: .dataDidChange, object: nil)
     }
 
     // ── CSV 导出 ──

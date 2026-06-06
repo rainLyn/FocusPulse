@@ -88,11 +88,6 @@ struct StatisticsView: View {
             } message: {
                 Text("将永久删除全部 \(vm.pendingDeletionCount) 条专注记录。\n此操作不可撤销，确定要重新开始吗？")
             }
-            .sheet(isPresented: Bindable(vm).showManageSheet) {
-                SessionManageView(initialDate: vm.currentDate) {
-                    vm.onManageDataChanged()
-                }
-            }
         }
     }
 
@@ -228,9 +223,6 @@ struct StatisticsView: View {
             Menu {
                 Button { vm.prepareExport() } label: {
                     Label("导出 CSV", systemImage: "square.and.arrow.up")
-                }
-                Button { vm.showManageSheet = true } label: {
-                    Label("管理记录", systemImage: "list.bullet.clipboard")
                 }
                 Divider()
                 Button { vm.showClearDataSheet = true } label: {
