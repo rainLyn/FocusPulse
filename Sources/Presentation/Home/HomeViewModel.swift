@@ -21,6 +21,7 @@ final class HomeViewModel {
     var editingCategory: FocusCategory? = nil
     var pendingDeleteCategory: FocusCategory? = nil
     var showDeleteConfirmation = false
+    var showCleanArchivedConfirmation = false
     var deleteConfirmationMessage = ""
     var isInitialized = false
 
@@ -103,34 +104,80 @@ final class HomeViewModel {
         return true
     }
 
-    func archiveCategory(_ cat: FocusCategory) {
-        categoryService.archive(cat)
-        if selectedCategoryId == cat.id { selectedCategoryId = categories.first?.id }
-        reloadCategories()
-    }
-
-    func deleteCategory(_ cat: FocusCategory) {
-        categoryService.archive(cat)
-        if selectedCategoryId == cat.id { selectedCategoryId = categories.first?.id }
-        reloadCategories()
+    func prepareEditCategory(_ cat: FocusCategory) {
+        editingCategory = cat
+        showCategoryEditor = true
     }
 
     func prepareToDelete(_ cat: FocusCategory) {
         pendingDeleteCategory = cat
         let count = sessionRepo.count(for: cat.id)
-        deleteConfirmationMessage = "该分类下有 \(count) 条专注记录，删除后数据将隐藏（不删除原始记录）"
+        deleteConfirmationMessage = "该分类下有 \(count) 条专注记录，删除分类将同时永久清除所有关联数据，此操作不可撤销。"
         showDeleteConfirmation = true
     }
 
     func confirmDelete() {
         guard let cat = pendingDeleteCategory else { return }
-        archiveCategory(cat)
+
+        //  收集受影响的天
+        let sessions = sessionRepo.fetch(byCategoryId: cat.id)
+        let affectedDays = Set(sessions.map { Calendar.current.startOfDay(for: $0.startTime) })
+
+        //  删除该分类下所有 session
+        sessions.forEach { sessionRepo.delete($0) }
+
+        //  物理删除分类
+        categoryService.delete(cat)
+
+        //  重建受影响天的聚合数据
+        for day in affectedDays {
+            aggregationService.refreshDailySummary(for: day)
+        }
+
+        if selectedCategoryId == cat.id { selectedCategoryId = nil }
         cancelDelete()
+        reloadCategories()
+        refreshDaily()
+        NotificationCenter.default.post(name: .dataDidChange, object: nil)
     }
 
     func cancelDelete() {
         pendingDeleteCategory = nil
         showDeleteConfirmation = false
+    }
+
+    // ── 清理已归档分类 ──
+    var archivedCategoryCount: Int {
+        categoryService.archivedCategories.count
+    }
+
+    func prepareCleanArchived() {
+        showCleanArchivedConfirmation = true
+    }
+
+    func confirmCleanArchived() {
+        let archived = categoryService.archivedCategories
+        var affectedDays = Set<Date>()
+
+        for cat in archived {
+            let sessions = sessionRepo.fetch(byCategoryId: cat.id)
+            affectedDays.formUnion(sessions.map { Calendar.current.startOfDay(for: $0.startTime) })
+            sessions.forEach { sessionRepo.delete($0) }
+            categoryService.delete(cat)
+        }
+
+        for day in affectedDays {
+            aggregationService.refreshDailySummary(for: day)
+        }
+
+        showCleanArchivedConfirmation = false
+        reloadCategories()
+        refreshDaily()
+        NotificationCenter.default.post(name: .dataDidChange, object: nil)
+    }
+
+    func cancelCleanArchived() {
+        showCleanArchivedConfirmation = false
     }
 
     // ──────────────────────────────────────────────

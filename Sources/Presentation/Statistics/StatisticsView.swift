@@ -88,6 +88,16 @@ struct StatisticsView: View {
             } message: {
                 Text("将永久删除全部 \(vm.pendingDeletionCount) 条专注记录。\n此操作不可撤销，确定要重新开始吗？")
             }
+            .sheet(isPresented: Bindable(vm).showSessionEditor) {
+                SessionEditView(
+                    session: vm.editingSession,
+                    categories: vm.editorCategories,
+                    onSave: { startTime, endTime, catId in
+                        vm.saveSession(startTime: startTime, endTime: endTime, categoryId: catId)
+                    },
+                    onDelete: vm.editingSession != nil ? { vm.deleteSession(vm.editingSession!) } : nil
+                )
+            }
         }
     }
 
@@ -149,21 +159,39 @@ struct StatisticsView: View {
                 )
                 .frame(height: 100)
             } else {
-                ForEach(Array(vm.sessionTimeline.enumerated()), id: \.offset) { _, item in
-                    HStack {
-                        Circle()
-                            .fill(ColorPalette.color(item.2))
-                            .frame(width: 8, height: 8)
-                        Text(item.0.startTime.timeRange(to: item.0.endTime ?? item.0.startTime))
-                            .font(.caption.monospacedDigit())
-                        Text(item.1)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(item.0.durationSeconds.prettyFormat)
-                            .font(.caption)
+                ForEach(vm.sessionTimeline, id: \.0.id) { item in
+                    Button {
+                        HapticService.selection()
+                        vm.prepareEditSession(item.0)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(item.0.startTime.timeRange(to: item.0.endTime ?? item.0.startTime))
+                                .font(.caption.monospacedDigit())
+
+                            Circle()
+                                .fill(ColorPalette.color(item.2))
+                                .frame(width: 6, height: 6)
+
+                            Text(item.1)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            Text(item.0.durationSeconds.prettyFormat)
+                                .font(.caption.monospacedDigit())
+                        }
+                        .padding(.horizontal, 16)
                     }
-                    .padding(.horizontal, 16)
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            vm.deleteSession(item.0)
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
+                    }
                 }
             }
         }
@@ -221,6 +249,12 @@ struct StatisticsView: View {
     private var toolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
+                Button {
+                    HapticService.selection()
+                    vm.prepareAddSession()
+                } label: {
+                    Label("添加记录", systemImage: "plus")
+                }
                 Button { vm.prepareExport() } label: {
                     Label("导出 CSV", systemImage: "square.and.arrow.up")
                 }

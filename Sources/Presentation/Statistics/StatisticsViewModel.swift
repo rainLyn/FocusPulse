@@ -23,6 +23,10 @@ final class StatisticsViewModel {
     // 全部清除
     var showClearAllConfirmation = false
 
+    // 单条记录编辑
+    var showSessionEditor = false
+    var editingSession: FocusSession? = nil
+
     // 月份选择器
     var showMonthPicker = false
     var pickerYear = 0
@@ -39,8 +43,14 @@ final class StatisticsViewModel {
     var isActive = false
 
     private let aggregationService: AggregationService
+    private let sessionService: SessionService
     private let exportService: ExportService
     private var dataObserver: NSObjectProtocol?
+
+    /// session 编辑器中的分类列表（含已归档，以兼容旧记录的分类显示）
+    var editorCategories: [FocusCategory] {
+        aggregationService.allCategories
+    }
 
     deinit {
         MainActor.assumeIsolated {
@@ -52,9 +62,11 @@ final class StatisticsViewModel {
 
     init(
         aggregationService: AggregationService? = nil,
+        sessionService: SessionService? = nil,
         exportService: ExportService? = nil
     ) {
         self.aggregationService = aggregationService ?? AggregationService()
+        self.sessionService = sessionService ?? SessionService()
         self.exportService = exportService ?? ExportService()
 
         dataObserver = NotificationCenter.default.addObserver(
@@ -166,6 +178,34 @@ final class StatisticsViewModel {
     func cancelClearAll() {
         pendingDeletionCount = 0
         showClearAllConfirmation = false
+    }
+
+    // ── 单条记录管理 ──
+    func prepareAddSession() {
+        editingSession = nil
+        showSessionEditor = true
+    }
+
+    func prepareEditSession(_ session: FocusSession) {
+        editingSession = session
+        showSessionEditor = true
+    }
+
+    func saveSession(startTime: Date, endTime: Date, categoryId: UUID) -> Bool {
+        guard endTime > startTime else { return false }
+        let duration = Int(endTime.timeIntervalSince(startTime))
+        guard duration >= 30 else { return false }
+
+        if let session = editingSession {
+            sessionService.edit(session, startTime: startTime, endTime: endTime, categoryId: categoryId)
+        } else {
+            sessionService.createManual(startTime: startTime, endTime: endTime, categoryId: categoryId)
+        }
+        return true
+    }
+
+    func deleteSession(_ session: FocusSession) {
+        sessionService.delete(session)
     }
 
     // ── CSV 导出 ──

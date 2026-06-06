@@ -13,6 +13,7 @@ struct AppDependency {
     let summaryRepository: SummaryRepository
     let categoryService: CategoryService
     let aggregationService: AggregationService
+    let sessionService: SessionService
     let preferenceStore: PreferenceStore
 
     init() {
@@ -25,6 +26,10 @@ struct AppDependency {
             summaryRepo: summaryRepository,
             categoryRepo: categoryRepository
         )
+        self.sessionService = SessionService(
+            sessionRepo: sessionRepository,
+            summaryRepo: summaryRepository
+        )
         self.preferenceStore = PreferenceStore()
     }
 
@@ -35,6 +40,7 @@ struct AppDependency {
         summaryRepository: SummaryRepository,
         categoryService: CategoryService,
         aggregationService: AggregationService,
+        sessionService: SessionService,
         preferenceStore: PreferenceStore
     ) {
         self.categoryRepository = categoryRepository
@@ -42,6 +48,7 @@ struct AppDependency {
         self.summaryRepository = summaryRepository
         self.categoryService = categoryService
         self.aggregationService = aggregationService
+        self.sessionService = sessionService
         self.preferenceStore = preferenceStore
     }
     #endif

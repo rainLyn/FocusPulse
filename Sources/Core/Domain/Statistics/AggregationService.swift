@@ -152,4 +152,9 @@ public final class AggregationService {
     public func refreshDailySummary(for date: Date) {
         summaryRepo.refresh(date: date)
     }
+
+    /// 所有分类（含已归档），供 session 编辑器分类选择使用
+    public var allCategories: [FocusCategory] {
+        categoryRepo.fetchAll(includeArchived: true)
+    }
 }

@@ -9,6 +9,7 @@ struct CategoryPickerView: View {
     let categories: [FocusCategory]
     @Binding var selectedId: UUID?
     var onDelete: ((FocusCategory) -> Void)?
+    var onEdit: ((FocusCategory) -> Void)?
 
     var body: some View {
         List {
@@ -34,6 +35,15 @@ struct CategoryPickerView: View {
                     .onTapGesture {
                         HapticService.selection()
                         selectedId = cat.id
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            HapticService.selection()
+                            onEdit?(cat)
+                        } label: {
+                            Label("编辑", systemImage: "pencil")
+                        }
+                        .tint(.blue)
                     }
                 }
                 .onDelete { indexSet in

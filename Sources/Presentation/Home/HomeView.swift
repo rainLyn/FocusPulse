@@ -16,6 +16,7 @@ struct HomeView: View {
                     emptyCategories
                 } else {
                     categorySection
+                    cleanArchivedButton
                     startButton
                     todayPreview
                 }
@@ -27,17 +28,25 @@ struct HomeView: View {
                 ActiveTimerView(vm: vm)
             }
             .sheet(isPresented: Bindable(vm).showCategoryEditor) {
-                CategoryEditView(
-                    onSave: { name, hex in
-                        vm.createCategory(name: name, colorHex: hex)
+                CategoryEditView(category: vm.editingCategory) { name, hex in
+                    if let cat = vm.editingCategory {
+                        defer { vm.editingCategory = nil }
+                        return vm.updateCategory(cat, name: name, colorHex: hex)
                     }
-                )
+                    return vm.createCategory(name: name, colorHex: hex)
+                }
             }
             .alert("确认删除", isPresented: Bindable(vm).showDeleteConfirmation) {
                 Button("删除", role: .destructive) { vm.confirmDelete() }
                 Button("取消", role: .cancel) { vm.cancelDelete() }
             } message: {
                 Text(vm.deleteConfirmationMessage)
+            }
+            .alert("清理已隐藏分类", isPresented: Bindable(vm).showCleanArchivedConfirmation) {
+                Button("取消", role: .cancel) { vm.cancelCleanArchived() }
+                Button("确认清理", role: .destructive) { vm.confirmCleanArchived() }
+            } message: {
+                Text("将永久删除 \(vm.archivedCategoryCount) 个已隐藏分类及其全部关联数据，此操作不可撤销。")
             }
         }
         .onAppear { vm.initialize() }
@@ -51,9 +60,26 @@ struct HomeView: View {
         CategoryPickerView(
             categories: vm.categories,
             selectedId: Bindable(vm).selectedCategoryId,
-            onDelete: { cat in vm.prepareToDelete(cat) }
+            onDelete: { cat in vm.prepareToDelete(cat) },
+            onEdit: { cat in vm.prepareEditCategory(cat) }
         )
         .padding(.top, 12)
+    }
+
+    // ── 清理已归档分类 ──
+    private var cleanArchivedButton: some View {
+        Group {
+            if vm.archivedCategoryCount > 0 {
+                Button {
+                    vm.prepareCleanArchived()
+                } label: {
+                    Text("清理 \(vm.archivedCategoryCount) 个已隐藏分类")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+            }
+        }
     }
 
     // ── 开始按钮 ──
@@ -132,6 +158,7 @@ struct HomeView: View {
     private var toolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Button {
+                vm.editingCategory = nil
                 vm.showCategoryEditor = true
             } label: {
                 Image(systemName: "plus")

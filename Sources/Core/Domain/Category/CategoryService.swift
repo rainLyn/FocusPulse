@@ -17,6 +17,11 @@ public final class CategoryService {
         repository.fetchAll()
     }
 
+    /// 获取所有已归档分类
+    public var archivedCategories: [FocusCategory] {
+        repository.fetchAll(includeArchived: true).filter { $0.isArchived }
+    }
+
     /// 创建分类
     /// 如果有同名已归档分类 → 恢复它并更新颜色/图标（历史数据自然接续）
     /// 否则 → 新建
@@ -65,6 +70,11 @@ public final class CategoryService {
     /// 软删除（归档）
     public func archive(_ category: FocusCategory) {
         repository.archive(category)
+    }
+
+    /// 物理删除分类
+    public func delete(_ category: FocusCategory) {
+        repository.delete(category)
     }
 
     /// 批量设置排序

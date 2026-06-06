@@ -71,5 +71,4 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
 extension Notification.Name {
     static let appDidBecomeActive = Notification.Name("appDidBecomeActive")
-    static let dataDidChange = Notification.Name("dataDidChange")
 }

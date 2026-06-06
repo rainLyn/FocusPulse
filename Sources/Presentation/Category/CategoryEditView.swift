@@ -1,4 +1,5 @@
 import SwiftUI
+import FocusPulseCore
 
 // ═════════════════════════════════════════════════════════════
 //  CategoryEditView — 创建/编辑分类
@@ -7,13 +8,23 @@ import SwiftUI
 struct CategoryEditView: View {
     @Environment(\.dismiss) private var dismiss
 
+    let category: FocusCategory?
     let onSave: (String, String) -> Bool
 
     @State private var name: String = ""
     @State private var selectedColor: String = ColorPalette.all[0]
     @State private var errorMessage: String? = nil
 
-    var isEditing: Bool { !name.isEmpty }
+    private var isEditMode: Bool { category != nil }
+
+    init(category: FocusCategory? = nil, onSave: @escaping (String, String) -> Bool) {
+        self.category = category
+        self.onSave = onSave
+        if let cat = category {
+            _name = State(initialValue: cat.name)
+            _selectedColor = State(initialValue: cat.colorHex)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -46,7 +57,7 @@ struct CategoryEditView: View {
                     }
                 }
             }
-            .navigationTitle(isEditing ? "编辑分类" : "新建分类")
+            .navigationTitle(isEditMode ? "编辑分类" : "新建分类")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
